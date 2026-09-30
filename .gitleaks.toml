@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+# Public Polymarket CTF token contract address on Polygon, not a secret
+[[allowlists]]
+regexTarget = "match"
+regexes = ['''0x4D97DCd97eC945f40cF65F87097ACe5EA0476045''']

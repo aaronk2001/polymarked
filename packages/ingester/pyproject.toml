@@ -1,0 +1,18 @@
+[project]
+name = "polymarket-agent-ingester"
+version = "0.1.0"
+description = "Pulls leaderboard snapshots and per-wallet activity from Polymarket Data API."
+requires-python = ">=3.11"
+dependencies = [
+    "polymarket-agent-core",
+]
+
+[project.scripts]
+polymarked-pull-leaderboard = "polymarket_agent_ingester.cli:cli_entry"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["polymarket_agent_ingester"]

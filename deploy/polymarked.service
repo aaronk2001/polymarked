@@ -1,0 +1,36 @@
+# systemd unit for running PolyMarked 24/7 on a Raspberry Pi / Linux host.
+#
+# Install:
+#   sudo cp deploy/polymarked.service /etc/systemd/system/polymarked.service
+#   # edit User= and WorkingDirectory= below to match your box
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now polymarked
+#   journalctl -u polymarked -f          # live logs
+#
+# Dashboard: http://<pi-ip>:8765  (requires API_HOST=0.0.0.0 below)
+#
+# SECURITY: 0.0.0.0 exposes the dashboard's mutate endpoints (follow/mode/panic)
+# to your whole LAN with no auth. Only set it on a trusted home network, and
+# keep it behind your router (never port-forward it). Leave it unset/127.0.0.1
+# to reach the dashboard only via an SSH tunnel:  ssh -L 8765:127.0.0.1:8765 pi@<ip>
+
+[Unit]
+Description=PolyMarked copy-trade agent (paper mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/PolyMarked
+Environment=POLYMARKED_OPEN_BROWSER=0
+Environment=API_HOST=0.0.0.0
+# Use the full path to uv if it is not on the service PATH.
+ExecStart=/home/pi/.local/bin/uv run python -m polymarket_agent_app.supervisor
+Restart=always
+RestartSec=5
+# Restart even if it exits cleanly; this is a 24/7 daemon.
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

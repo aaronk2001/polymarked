@@ -1,0 +1,59 @@
+[project]
+name = "polymarket-agent"
+version = "0.1.0"
+description = "Polymarket intelligence + copy-trading agent (single-user desktop)."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["packages/*"]
+exclude = ["packages/dashboard"]
+
+[tool.uv.sources]
+polymarket-agent-core = { workspace = true }
+polymarket-agent-ingester = { workspace = true }
+polymarket-agent-scoring = { workspace = true }
+polymarket-agent-watcher = { workspace = true }
+polymarket-agent-executor = { workspace = true }
+polymarket-agent-telegram-bot = { workspace = true }
+polymarket-agent-api = { workspace = true }
+polymarket-agent-llm = { workspace = true }
+polymarket-agent-app = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "polymarket-agent-core",
+    "polymarket-agent-ingester",
+    "polymarket-agent-app",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.6",
+    "alembic>=1.13",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "network: requires live network (skipped in CI)",
+    "integration: requires real CLOB credentials + funded testnet wallet (manual run only)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "RET", "SIM", "TCH"]
+ignore = [
+    "E501",
+    # TC001-TC003: pydantic and FastAPI resolve annotations at runtime, so hiding
+    # imports in a TYPE_CHECKING block is a correctness risk here for no gain.
+    "TC001", "TC002", "TC003",
+    # ASYNC240/ASYNC221: the blocking calls are deliberate — the PID lockfile and
+    # the stale-instance taskkill must complete before anything binds a port, and
+    # the research scripts write their JSON once, offline.
+    "ASYNC240", "ASYNC221",
+]
