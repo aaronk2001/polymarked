@@ -1543,12 +1543,14 @@ version = "0.1.0"
 source = { editable = "packages/telegram_bot" }
 dependencies = [
     { name = "polymarket-agent-core" },
+    { name = "polymarket-agent-llm" },
     { name = "python-telegram-bot" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "polymarket-agent-core", editable = "packages/core" },
+    { name = "polymarket-agent-llm", editable = "packages/llm" },
     { name = "python-telegram-bot", specifier = ">=21" },
 ]
 

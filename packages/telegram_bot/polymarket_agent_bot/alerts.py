@@ -14,6 +14,7 @@ from polymarket_agent_core import runtime_config as rc
 from polymarket_agent_core.config import load_settings
 from polymarket_agent_executor import paper_snapshot, record_decision
 from polymarket_agent_executor.decisions import Decision
+from polymarket_agent_llm import summarize_trade
 from polymarket_agent_watcher import TradeDetected
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -25,20 +26,37 @@ log = structlog.get_logger(__name__)
 
 # Only these decisions are worth a per-trade DM; the rest are routine skips/noise.
 _ALERT_DECISIONS = {"PAPER_FILLED", "EXECUTED", "FAILED"}
+_NARRATION_TIMEOUT_S = 30.0  # cold model load measured ~24s
 
 
-def _format(ev: TradeDetected, dec: Decision) -> str:
+def _format(ev: TradeDetected, dec: Decision, note: str | None = None) -> str:
     title = md2_escape(ev.title or "(unknown market)")
     outcome = md2_escape(ev.outcome or "")
     side = md2_escape(ev.side.upper())
     decision_line = md2_escape(f"{dec.decision}: {dec.reason}")
-    return (
+    text = (
         f"*{side}* `{ev.wallet[:14]}...`\n"
         f"{title}\n"
         f"_{outcome}_  `@ ${ev.price:.3f}`\n"
         f"size `{ev.size:,.0f}`  `${ev.usdc_size:,.2f}`\n"
         f"→ _{decision_line}_"
     )
+    if note:
+        text += f"\n💬 _{md2_escape(note)}_"
+    return text
+
+
+async def _narrate(ev: TradeDetected) -> str | None:
+    """One-line summary from the local model. Runs after the decision is
+    recorded, so it can only change the alert text, never the trade."""
+    try:
+        return await asyncio.wait_for(
+            summarize_trade(ev.title or "(unknown market)", ev.side, ev.size, ev.price),
+            timeout=_NARRATION_TIMEOUT_S,
+        )
+    except TimeoutError:
+        log.warning("alerts.narration_timeout")
+        return None
 
 
 def format_balance_summary(bal) -> str:
@@ -90,16 +108,26 @@ async def alert_pump(app: Application, queue: asyncio.Queue[TradeDetected], stop
             continue
         if decision.decision not in _ALERT_DECISIONS:
             continue
-        try:
-            await app.bot.send_message(
-                chat_id=chat_id,
-                text=_format(ev, decision),
-                parse_mode=ParseMode.MARKDOWN_V2,
-                reply_markup=_keyboard(ev),
-                disable_web_page_preview=True,
-            )
-        except Exception as e:
-            log.error("alerts.send_failed", error=str(e), wallet=ev.wallet)
+        # Off the pump so a slow model never delays the next decision.
+        task = asyncio.create_task(_send_alert(app, chat_id, ev, decision))
+        _pending.add(task)
+        task.add_done_callback(_pending.discard)
+
+
+_pending: set[asyncio.Task] = set()
+
+
+async def _send_alert(app: Application, chat_id: int, ev: TradeDetected, decision: Decision) -> None:
+    try:
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=_format(ev, decision, await _narrate(ev)),
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=_keyboard(ev),
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        log.error("alerts.send_failed", error=str(e), wallet=ev.wallet)
 
 
 async def profit_pump(app: Application, stop: asyncio.Event) -> None:

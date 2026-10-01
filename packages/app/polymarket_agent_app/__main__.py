@@ -105,9 +105,22 @@ def _wait_until_ready(url: str, timeout: float = 45.0) -> bool:
     return False
 
 
+def _migrate_if_frozen() -> None:
+    """The .exe has no alembic CLI, so it upgrades the DB itself. The uv
+    launchers already run `alembic upgrade head` before starting the app."""
+    if not getattr(sys, "frozen", False):
+        return
+    from alembic.config import Config
+
+    from alembic import command
+
+    command.upgrade(Config("alembic.ini"), "head")
+
+
 def main() -> None:
     _install_crash_capture()
     _crash("=== launch ===")
+    _migrate_if_frozen()
     configure_logging()
     os.environ.setdefault("POLYMARKED_OPEN_BROWSER", "0")
 

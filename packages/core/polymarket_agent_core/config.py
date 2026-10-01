@@ -111,7 +111,7 @@ class Settings(BaseSettings):
 
     llm_enabled: bool = True
     llm_base_url: str = "http://127.0.0.1:11434"
-    llm_model: str = "qwen2.5:3b-instruct-q4_K_M"
+    llm_model: str = "qwen2.5:0.5b-instruct"
 
     api_host: str = "127.0.0.1"
     api_port: int = 8765

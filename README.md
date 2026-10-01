@@ -27,11 +27,11 @@ The six places I'd look first, with numbers from the code and the test suite:
 5. **Live mark-to-market, not cost basis.** Open positions are priced against live CLOB mid-prices, at most 8 fetches in flight and cached per token, misses included ([`marks.py#L55-L80`](packages/executor/polymarket_agent_executor/marks.py#L55-L80)), resolved markets are settled on a cadence ([`resolutions.py`](packages/executor/polymarket_agent_executor/resolutions.py)), and an equity recorder snapshots the curve so the dashboard sparkline is real history rather than a redraw of the current number.
 6. **Runtime config without a restart.** Every knob in the Settings tab is a row in a runtime-config table that the background loops re-read each tick ([`runtime_config.py`](packages/core/polymarket_agent_core/runtime_config.py), consumed in [`supervisor.py#L304-L340`](packages/app/polymarket_agent_app/supervisor.py#L304-L340)), so changing the sweep cadence or the stop-loss price takes effect on the next cycle. `.env` stays the boot default.
 
-**By the numbers:** 51 tests · 30 API routes · 17 Telegram command handlers · 10 workspace packages, ~5.4k lines of Python · a single-file 1k-line dashboard with no build step, no framework and no dependencies · CI on Ubuntu and Windows × Python 3.11 and 3.12.
+**By the numbers:** 55 tests · 30 API routes · 17 Telegram command handlers · 10 workspace packages, ~5.4k lines of Python · a single-file 1k-line dashboard with no build step, no framework and no dependencies · CI on Ubuntu and Windows × Python 3.11 and 3.12.
 
 ## Quick start
 
-Prerequisites: Python 3.11 or 3.12, and [uv](https://docs.astral.sh/uv/).
+Prerequisites: Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/), and optionally [Ollama](https://ollama.com) with `qwen2.5:0.5b-instruct` for one-line trade summaries in Telegram alerts.
 
 ```powershell
 uv sync --all-packages
@@ -43,11 +43,14 @@ uv run python scripts/follow_wallet.py 0x204f72f35326db932158cba6adff0b9a1da95e1
 uv run python -m polymarket_agent_app          # tray + dashboard + watcher + bot
 ```
 
-The dashboard is at <http://127.0.0.1:8765> and refreshes every 5 s. Telegram is optional — leave the token blank and the bot simply doesn't start. Install the desktop icon once with:
+The dashboard is at <http://127.0.0.1:8765> and refreshes every 5 s. Telegram is optional — leave the token blank and the bot simply doesn't start. Build the desktop app and install its icon once with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/make-shortcut.ps1
+powershell -ExecutionPolicy Bypass -File scripts/build-exe.ps1      # dist\PolyMarked\PolyMarked.exe
+powershell -ExecutionPolicy Bypass -File scripts/install-shortcut.ps1
 ```
+
+The exe runs migrations on start and reads `.env` and `data/` from the repo root. Rebuild it after pulling code changes; without a build, the shortcut falls back to the `uv` launcher.
 
 ## TRADE_MODE
 
@@ -75,7 +78,7 @@ The design rule: nothing that reasons about markets can place an order. Executio
 | Keys and funds | [`clob.py`](packages/executor/polymarket_agent_executor/clob.py) | Without `POLYMARKET_PRIVATE_KEY`, a funded proxy wallet and on-chain allowances, live orders can't be signed. |
 | Kill switch | `/panic` | Turns off every opt-in, pauses fills, cancels open orders (dashboard). |
 
-**Why execution is outside the agent.** Scoring, ranking and the research scripts decide *what looks interesting*. None of them can reach `place_fok`. The only caller is `record_decision`, a plain function whose inputs are the owner's settings and opt-ins. The Ollama wrapper in `packages/llm` is narration-only with no tool calling, and the app doesn't call it yet. If a model is added later, it gets read access to scores and writes text, and the blast radius of a bad output stays at "a wrong sentence", not "a wrong trade".
+**Why execution is outside the agent.** Scoring, ranking and the research scripts decide *what looks interesting*. None of them can reach `place_fok`. The only caller is `record_decision`, a plain function whose inputs are the owner's settings and opt-ins. The local model in `packages/llm` only writes a one-line summary onto a Telegram alert. It has no tool calling, it runs after `record_decision` has returned, and it runs in its own task so a slow model can't delay the next decision. The blast radius of a bad output is "a wrong sentence", not "a wrong trade".
 
 **Known limits.** The dashboard API has no authentication. It binds `127.0.0.1` by default and can't enable live, but it can follow and unfollow wallets and toggle panic, so don't expose it. `deploy/polymarked.service` binds `0.0.0.0` for a trusted home LAN and says so in a comment. The live path has unit tests but has not been run with real funds.
 
@@ -130,6 +133,7 @@ Everything is local except these, and each one is something you turned on:
 
 - **Polymarket** (`gamma-api`, `clob`, `data-api`) — leaderboard snapshots, per-wallet activity, market prices and resolutions. Read-only unless `TRADE_MODE=live`.
 - **Telegram** — long polling, only when `TELEGRAM_BOT_TOKEN` is set. No public URL or webhook, so it works behind home NAT.
+- **Ollama** (`127.0.0.1:11434`) — optional, local. Only when a trade alert is sent; if the daemon isn't running the alert goes out without a summary.
 - **Polygon RPC** — only on the Phase 4b live path (allowance approvals, order signing). Never touched in `off` or `paper`.
 
 The database is a local SQLite file (`./data/polymarked.db`, override with `DATABASE_URL`), the API binds `127.0.0.1` by default, and `data/`, `.venv/` and `.env` are gitignored.
@@ -145,7 +149,7 @@ packages/
   executor/      sizer, risk caps, paper ledger, marks, resolutions, value strategy
   telegram_bot/  owner-gated bot + alerts pump + admin commands
   api/           FastAPI dashboard backend (127.0.0.1 by default)
-  llm/           Ollama narration wrapper (graceful fallback; not called by the app yet)
+  llm/           Ollama narration for trade alerts (no-ops if Ollama is down)
   app/           desktop entrypoint, tray icon, supervisor
   dashboard/     single-file HTML, auto-refreshing every 5 s
 scripts/         ingest + ops (pull_leaderboard, follow_wallet, score_wallet, top_scores)
@@ -161,8 +165,8 @@ tests/           unit + integration markers (network/integration tests skipped i
 - [x] **Phase 4a** — `TRADE_MODE off|paper|live`, sizer, risk caps, paper ledger, decision pump. Backtest replay of 1,500 events → 231 paper fills.
 - [ ] **Phase 4b** — live CLOB path. Code written: `clob.py::place_fok` signs and posts FOK orders, `allowances.py` sets USDC + CTF approvals, and API keys are derived on first use. Not yet run with real funds.
 - [x] **Phase 5** — FastAPI dashboard at `127.0.0.1:8765`, supervisor running watcher + bot + API in one event loop, pystray tray icon.
-- [ ] **LLM narration** — Ollama wrapper written (`packages/llm`), not yet wired into alerts.
+- [x] **LLM narration** — Telegram trade alerts carry a one-line summary from a local `qwen2.5:0.5b-instruct`, sent off the decision path with a 30 s timeout.
 - [x] **Research + value book** — copy-edge tests, calibration study, favorite-longshot strategy in its own book.
-- [ ] **PyInstaller `.exe`** — the shortcut currently launches `uv run python -m polymarket_agent_app`.
+- [x] **PyInstaller `.exe`** — `scripts/build-exe.ps1` builds a one-folder, no-console `PolyMarked.exe`; the Desktop shortcut launches it.
 
 Personal project. No license granted.

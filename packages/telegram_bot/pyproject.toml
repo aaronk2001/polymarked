@@ -5,6 +5,7 @@ description = "Owner-gated Telegram bot. Long polling. Phase 3."
 requires-python = ">=3.11"
 dependencies = [
     "polymarket-agent-core",
+    "polymarket-agent-llm",
     "python-telegram-bot>=21",
 ]
 
