@@ -40,7 +40,7 @@ notepad .env                   # TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_CHAT_ID; le
 uv run alembic upgrade head
 uv run python scripts/pull_leaderboard.py --top 500 --time-period ALL
 uv run python scripts/follow_wallet.py 0x204f72f35326db932158cba6adff0b9a1da95e14 --nickname active-whale
-uv run python -m polymarket_agent_app          # tray + dashboard + watcher + bot
+uv run python -m polymarket_agent_app          # window + dashboard + watcher + bot
 ```
 
 The dashboard is at <http://127.0.0.1:8765> and refreshes every 5 s. Telegram is optional — leave the token blank and the bot simply doesn't start. Build the desktop app and install its icon once with:
@@ -134,7 +134,7 @@ Everything is local except these, and each one is something you turned on:
 - **Polymarket** (`gamma-api`, `clob`, `data-api`) — leaderboard snapshots, per-wallet activity, market prices and resolutions. Read-only unless `TRADE_MODE=live`.
 - **Telegram** — long polling, only when `TELEGRAM_BOT_TOKEN` is set. No public URL or webhook, so it works behind home NAT.
 - **Ollama** (`127.0.0.1:11434`) — optional, local. Only when a trade alert is sent; if the daemon isn't running the alert goes out without a summary.
-- **Polygon RPC** — only on the Phase 4b live path (allowance approvals, order signing). Never touched in `off` or `paper`.
+- **Polygon RPC** — only on the live path (allowance approvals, order signing). Never touched in `off` or `paper`.
 
 The database is a local SQLite file (`./data/polymarked.db`, override with `DATABASE_URL`), the API binds `127.0.0.1` by default, and `data/`, `.venv/` and `.env` are gitignored.
 
@@ -150,7 +150,7 @@ packages/
   telegram_bot/  owner-gated bot + alerts pump + admin commands
   api/           FastAPI dashboard backend (127.0.0.1 by default)
   llm/           Ollama narration for trade alerts (no-ops if Ollama is down)
-  app/           desktop entrypoint, tray icon, supervisor
+  app/           desktop entrypoint (pywebview window), supervisor
   dashboard/     single-file HTML, auto-refreshing every 5 s
 scripts/         ingest + ops (pull_leaderboard, follow_wallet, score_wallet, top_scores)
                  and the research suite (backtest, clv_score, validate_clv, consensus,
@@ -163,8 +163,7 @@ tests/           unit + integration markers (network/integration tests skipped i
 
 - [x] **Phase 0–3** — uv workspace, SQLite + Alembic, leaderboard ingester, Smart Score engine, wallet watcher with 24h backfill and cursor pagination, owner-gated Telegram bot.
 - [x] **Phase 4a** — `TRADE_MODE off|paper|live`, sizer, risk caps, paper ledger, decision pump. Backtest replay of 1,500 events → 231 paper fills.
-- [ ] **Phase 4b** — live CLOB path. Code written: `clob.py::place_fok` signs and posts FOK orders, `allowances.py` sets USDC + CTF approvals, and API keys are derived on first use. Not yet run with real funds.
-- [x] **Phase 5** — FastAPI dashboard at `127.0.0.1:8765`, supervisor running watcher + bot + API in one event loop, pystray tray icon.
+- [x] **Phase 5** — FastAPI dashboard at `127.0.0.1:8765`, supervisor running watcher + bot + API in one event loop, native pywebview window.
 - [x] **LLM narration** — Telegram trade alerts carry a one-line summary from a local `qwen2.5:0.5b-instruct`, sent off the decision path with a 30 s timeout.
 - [x] **Research + value book** — copy-edge tests, calibration study, favorite-longshot strategy in its own book.
 - [x] **PyInstaller `.exe`** — `scripts/build-exe.ps1` builds a one-folder, no-console `PolyMarked.exe`; the Desktop shortcut launches it.

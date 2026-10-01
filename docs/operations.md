@@ -82,7 +82,7 @@ To restore: stop the supervisor task, copy the chosen backup over
 |---|---|
 | `off` | Brand-new install. Watch alerts in Telegram for a day. No fills anywhere. |
 | `paper` | Default. Validate the strategy for a week+. Check `/balance` daily. |
-| `live` | Only after Phase 4b smoke test on Amoy AND `set_allowances.py` ran on mainnet AND proxy wallet funded with a deliberately small bankroll. |
+| `live` | Only after a smoke test on Amoy AND `set_allowances.py` ran on mainnet AND proxy wallet funded with a deliberately small bankroll. |
 
 Never flip `live` directly from `off`. Always sit in `paper` for at least a
 week so any silent bug shows up against the paper ledger first.
