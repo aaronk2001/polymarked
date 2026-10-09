@@ -16,6 +16,11 @@ Polymarket publishes a public leaderboard and a full per-wallet activity feed, s
 
 The answer turned out to be no (see [What the research found](#what-the-research-found)), which is why the app has two books: the copy book that the thesis lives in, and a value book running the one strategy that held up out of sample. Everything runs on one machine, against a local SQLite file, and nothing signs a transaction unless you explicitly move it to live mode.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/trade-lifecycle-dark.png">
+  <img alt="Process diagram of the trade lifecycle: ingester, scoring, watcher and executor hand work forward through SQLite, ending in a paper fill, mark to market and settlement." src="docs/diagrams/trade-lifecycle-light.png" width="960">
+</picture>
+
 ## Highlights for reviewers
 
 The six places I'd look first, with numbers from the code and the test suite:
